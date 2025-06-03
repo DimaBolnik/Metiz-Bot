@@ -1,5 +1,6 @@
 package ru.bolnik.dispatcher.controller;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
@@ -10,30 +11,31 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Component
-public class TelegramBotController extends TelegramLongPollingBot {
+public class TelegramBot extends TelegramLongPollingBot {
 
-    private static final Logger logger = LoggerFactory.getLogger(TelegramBotController.class);
-
-    public TelegramBotController(@Value("${telegram.bot.token}")String botToken) {
-        super(botToken);
-    }
+    private static final Logger logger = LoggerFactory.getLogger(TelegramBot.class);
 
     @Value("${telegram.bot.username}")
     private String botUsername;
 
-    @Override
-    public void onUpdateReceived(Update update) {
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            String messageText = update.getMessage().getText();
-            Long chatId = update.getMessage().getChatId();
-            logger.info("Получено сообщение: {} от пользователя с chatId: {}", messageText, chatId);
+    private final TelegramMessageDispatcher telegramMessageDispatcher;
 
-            // Отправляем ответ пользователю
-            sendResponse(chatId, "Ваш запрос принят в обработку.");
-        }
+    public TelegramBot(@Value("${telegram.bot.token}")String botToken, TelegramMessageDispatcher telegramMessageDispatcher) {
+        super(botToken);
+        this.telegramMessageDispatcher = telegramMessageDispatcher;
     }
 
-    private void sendResponse(Long chatId, String text) {
+    @PostConstruct
+    public void init() {
+        telegramMessageDispatcher.registerBot(this);
+    }
+
+    @Override
+    public void onUpdateReceived(Update update) {
+        telegramMessageDispatcher.processUpdate(update);
+    }
+
+    public void sendResponse(Long chatId, String text) {
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chatId.toString());
         sendMessage.setText(text);
